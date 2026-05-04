@@ -22,17 +22,25 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
     private Queue<Tetromino> nextQueue = new LinkedList<>();
 
     private int score = 0;
+    private int level = 1;
+    private int totalLinesCleared = 0;
+
+    // Combo system
+    private int combo = -1;
+
+    // Pastel palette
+    private Color[] palette = new Color[7];
 
     private enum Tetromino {
         I(new int[][][]{
                 {{1,1,1,1}},
                 {{1},{1},{1},{1}}
-        }, Color.cyan),
+        }),
 
         O(new int[][][]{
                 {{1,1},
                  {1,1}}
-        }, Color.yellow),
+        }),
 
         T(new int[][][]{
                 {{0,1,0},
@@ -45,7 +53,7 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
                 {{0,1},
                  {1,1},
                  {0,1}}
-        }, Color.magenta),
+        }),
 
         L(new int[][][]{
                 {{1,0},
@@ -58,7 +66,7 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
                  {0,1}},
                 {{0,0,1},
                  {1,1,1}}
-        }, Color.orange),
+        }),
 
         J(new int[][][]{
                 {{0,1},
@@ -71,7 +79,7 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
                  {1,0}},
                 {{1,1,1},
                  {0,0,1}}
-        }, Color.blue),
+        }),
 
         S(new int[][][]{
                 {{0,1,1},
@@ -79,7 +87,7 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
                 {{1,0},
                  {1,1},
                  {0,1}}
-        }, Color.green),
+        }),
 
         Z(new int[][][]{
                 {{1,1,0},
@@ -87,14 +95,12 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
                 {{0,1},
                  {1,1},
                  {1,0}}
-        }, Color.red);
+        });
 
         int[][][] shapes;
-        Color color;
 
-        Tetromino(int[][][] s, Color c) {
+        Tetromino(int[][][] s) {
             shapes = s;
-            color = c;
         }
     }
 
@@ -104,11 +110,34 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
         setFocusable(true);
         addKeyListener(this);
 
+        generatePastelPalette();
         refillQueue();
         spawnPiece();
 
         timer = new javax.swing.Timer(500, this);
         timer.start();
+    }
+
+    // ⭐ Generate pastel colors
+    private void generatePastelPalette() {
+        Random rand = new Random();
+        for (int i = 0; i < 7; i++) {
+            float hue = rand.nextFloat();
+            float sat = 0.4f + rand.nextFloat() * 0.2f;   // pastel saturation
+            float bright = 0.85f + rand.nextFloat() * 0.15f; // pastel brightness
+            palette[i] = Color.getHSBColor(hue, sat, bright);
+        }
+    }
+
+    // ⭐ Recolor board with new pastel palette
+    private void recolorBoardForNewLevel() {
+        for (int r = 0; r < ROWS; r++) {
+            for (int c = 0; c < COLS; c++) {
+                if (board[r][c] != null) {
+                    board[r][c] = palette[(r + c) % 7];
+                }
+            }
+        }
     }
 
     private void refillQueue() {
@@ -128,7 +157,7 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
 
         if (!validMove(piecePos.x, piecePos.y, rotation)) {
             timer.stop();
-            JOptionPane.showMessageDialog(this, "Game Over\nScore: " + score);
+            JOptionPane.showMessageDialog(this, "Game Over\nScore: " + score + "\nLevel: " + level);
             System.exit(0);
         }
     }
@@ -158,10 +187,12 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
 
     private void lockPiece() {
         int[][] shape = getShape();
+        Color color = palette[currentPiece.ordinal()];
+
         for (int r = 0; r < shape.length; r++) {
             for (int c = 0; c < shape[r].length; c++) {
                 if (shape[r][c] == 1) {
-                    board[piecePos.y + r][piecePos.x + c] = currentPiece.color;
+                    board[piecePos.y + r][piecePos.x + c] = color;
                 }
             }
         }
@@ -190,11 +221,45 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
             }
         }
 
-        switch (linesCleared) {
-            case 1: score += 100; break;
-            case 2: score += 300; break;
-            case 3: score += 500; break;
-            case 4: score += 800; break;
+        if (linesCleared > 0) {
+            combo++;
+            if (combo < 0) combo = 0;
+
+            totalLinesCleared += linesCleared;
+
+            int baseScore = 0;
+            switch (linesCleared) {
+                case 1: baseScore = 100 * level; break;
+                case 2: baseScore = 300 * level; break;
+                case 3: baseScore = 500 * level; break;
+                case 4:
+                    // ⭐ Tetra with 500× multiplier
+                    baseScore = 800 * level * 500;
+                    break;
+            }
+
+            // ⭐ Combo bonus
+            int comboBonus = combo * 50 * level;
+
+            // ⭐ Combo string reward
+            if (combo == 2) {
+                score += 500_000;
+            }
+
+            score += baseScore + comboBonus;
+
+            // ⭐ Level up
+            if (totalLinesCleared >= level * 10) {
+                level++;
+
+                int newDelay = Math.max(80, 500 - (level - 1) * 40);
+                timer.setDelay(newDelay);
+
+                generatePastelPalette();
+                recolorBoardForNewLevel();
+            }
+        } else {
+            combo = -1;
         }
     }
 
@@ -238,7 +303,6 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
         repaint();
     }
 
-    // ⭐ GHOST PIECE POSITION ⭐
     private Point getGhostPosition() {
         int ghostY = piecePos.y;
         while (validMove(piecePos.x, ghostY + 1, rotation)) {
@@ -251,14 +315,9 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
 
-        // ⭐ Draw ghost piece ⭐
+        // Ghost piece
         Point ghost = getGhostPosition();
-        g.setColor(new Color(
-                currentPiece.color.getRed(),
-                currentPiece.color.getGreen(),
-                currentPiece.color.getBlue(),
-                80
-        ));
+        g.setColor(new Color(255, 255, 255, 60));
         int[][] ghostShape = getShape();
         for (int r = 0; r < ghostShape.length; r++) {
             for (int c = 0; c < ghostShape[r].length; c++) {
@@ -268,7 +327,7 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
             }
         }
 
-        // Draw board
+        // Board
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
                 if (board[r][c] != null) {
@@ -278,8 +337,8 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
             }
         }
 
-        // Draw current piece
-        g.setColor(currentPiece.color);
+        // Current piece
+        g.setColor(palette[currentPiece.ordinal()]);
         int[][] shape = getShape();
         for (int r = 0; r < shape.length; r++) {
             for (int c = 0; c < shape[r].length; c++) {
@@ -289,18 +348,18 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
             }
         }
 
-        // Draw score
+        // UI
         g.setColor(Color.white);
         g.setFont(new Font("Arial", Font.BOLD, 20));
         g.drawString("Score: " + score, COLS * BLOCK + 20, 40);
+        g.drawString("Level: " + level, COLS * BLOCK + 20, 70);
+        g.drawString("Combo: " + Math.max(combo, 0), COLS * BLOCK + 20, 100);
 
-        // Draw hold
-        g.drawString("HOLD:", COLS * BLOCK + 20, 100);
-        if (holdPiece != null) drawMiniPiece(g, holdPiece, COLS * BLOCK + 20, 120);
+        g.drawString("HOLD:", COLS * BLOCK + 20, 140);
+        if (holdPiece != null) drawMiniPiece(g, holdPiece, COLS * BLOCK + 20, 160);
 
-        // Draw next queue
-        g.drawString("NEXT:", COLS * BLOCK + 20, 220);
-        int offset = 240;
+        g.drawString("NEXT:", COLS * BLOCK + 20, 260);
+        int offset = 280;
         for (Tetromino t : nextQueue) {
             drawMiniPiece(g, t, COLS * BLOCK + 20, offset);
             offset += 80;
@@ -308,7 +367,7 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
     }
 
     private void drawMiniPiece(Graphics g, Tetromino t, int x, int y) {
-        g.setColor(t.color);
+        g.setColor(palette[t.ordinal()]);
         int[][] shape = t.shapes[0];
         for (int r = 0; r < shape.length; r++) {
             for (int c = 0; c < shape[r].length; c++) {
