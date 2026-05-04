@@ -9,7 +9,7 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
     private final int COLS = 10;
     private final int BLOCK = 30;
 
-    private javax.swing.Timer timer; // <-- Correct Timer
+    private javax.swing.Timer timer;
     private Color[][] board = new Color[ROWS][COLS];
 
     private Point piecePos;
@@ -107,7 +107,7 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
         refillQueue();
         spawnPiece();
 
-        timer = new javax.swing.Timer(500, this); // <-- Correct Timer
+        timer = new javax.swing.Timer(500, this);
         timer.start();
     }
 
@@ -238,9 +238,35 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
         repaint();
     }
 
+    // ⭐ GHOST PIECE POSITION ⭐
+    private Point getGhostPosition() {
+        int ghostY = piecePos.y;
+        while (validMove(piecePos.x, ghostY + 1, rotation)) {
+            ghostY++;
+        }
+        return new Point(piecePos.x, ghostY);
+    }
+
     @Override
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
+
+        // ⭐ Draw ghost piece ⭐
+        Point ghost = getGhostPosition();
+        g.setColor(new Color(
+                currentPiece.color.getRed(),
+                currentPiece.color.getGreen(),
+                currentPiece.color.getBlue(),
+                80
+        ));
+        int[][] ghostShape = getShape();
+        for (int r = 0; r < ghostShape.length; r++) {
+            for (int c = 0; c < ghostShape[r].length; c++) {
+                if (ghostShape[r][c] == 1) {
+                    g.fillRect((ghost.x + c) * BLOCK, (ghost.y + r) * BLOCK, BLOCK, BLOCK);
+                }
+            }
+        }
 
         // Draw board
         for (int r = 0; r < ROWS; r++) {
