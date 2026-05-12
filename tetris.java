@@ -30,19 +30,17 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
 
     private Color[] palette = new Color[7];
 
-    private boolean paused = false;   // ⭐ Pause flag
+    private boolean paused = false;
 
     private enum Tetromino {
         I(new int[][][]{
                 {{1,1,1,1}},
                 {{1},{1},{1},{1}}
         }),
-
         O(new int[][][]{
                 {{1,1},
                  {1,1}}
         }),
-
         T(new int[][][]{
                 {{0,1,0},
                  {1,1,1}},
@@ -55,7 +53,6 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
                  {1,1},
                  {0,1}}
         }),
-
         L(new int[][][]{
                 {{1,0},
                  {1,0},
@@ -68,7 +65,6 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
                 {{0,0,1},
                  {1,1,1}}
         }),
-
         J(new int[][][]{
                 {{0,1},
                  {0,1},
@@ -81,7 +77,6 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
                 {{1,1,1},
                  {0,0,1}}
         }),
-
         S(new int[][][]{
                 {{0,1,1},
                  {1,1,0}},
@@ -89,7 +84,6 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
                  {1,1},
                  {0,1}}
         }),
-
         Z(new int[][][]{
                 {{1,1,0},
                  {0,1,1}},
@@ -99,10 +93,7 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
         });
 
         int[][][] shapes;
-
-        Tetromino(int[][][] s) {
-            shapes = s;
-        }
+        Tetromino(int[][][] s) { shapes = s; }
     }
 
     public Tetris() {
@@ -155,12 +146,52 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
         holdUsedThisTurn = false;
 
         if (!validMove(piecePos.x, piecePos.y, rotation)) {
-            // ⭐ REAL GAME OVER POPUP RESTORED
             timer.stop();
-            JOptionPane.showMessageDialog(this,
-                "Game Over\nScore: " + score + "\nLevel: " + level);
-            System.exit(0);
+
+            String[] options = {"Restart", "Quit"};
+            int choice = JOptionPane.showOptionDialog(
+                this,
+                "Game Over\nScore: " + score + "\nLevel: " + level,
+                "Game Over",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.INFORMATION_MESSAGE,
+                null,
+                options,
+                options[0]
+            );
+
+            if (choice == JOptionPane.YES_OPTION) {
+                restartGame();
+            } else {
+                System.exit(0);
+            }
         }
+    }
+
+    private void restartGame() {
+        score = 0;
+        level = 1;
+        combo = -1;
+        totalLinesCleared = 0;
+        holdPiece = null;
+        holdUsedThisTurn = false;
+
+        for (int r = 0; r < ROWS; r++) {
+            Arrays.fill(board[r], null);
+        }
+
+        nextQueue.clear();
+        refillQueue();
+
+        generatePastelPalette();
+
+        timer.setDelay(500);
+
+        spawnPiece();
+
+        paused = false;
+        timer.start();
+        repaint();
     }
 
     private int[][] getShape() {
@@ -236,28 +267,25 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
 
             totalLinesCleared += linesCleared;
 
-            int baseScore = 0;
-            switch (linesCleared) {
-                case 1: baseScore = 100 * level; break;
-                case 2: baseScore = 300 * level; break;
-                case 3: baseScore = 500 * level; break;
-                case 4:
-                    baseScore = 800 * level * 500;
-                    break;
-            }
+            int baseScore = switch (linesCleared) {
+                case 1 -> 100 * level;
+                case 2 -> 300 * level;
+                case 3 -> 500 * level;
+                case 4 -> 800 * level * 500;
+                default -> 0;
+            };
 
             int comboBonus = combo * 50 * level;
 
-            if (combo == 2) {
-                score += 500_000;
-            }
+            if (combo == 2) score += 500_000;
 
             score += baseScore + comboBonus;
 
             if (totalLinesCleared >= level * 10) {
                 level++;
 
-                int newDelay = Math.max(100, 500 - (level - 1) * 40);
+                // ⭐ Faster but playable speed curve
+                int newDelay = Math.max(90, 500 - (level - 1) * 100);
                 timer.setDelay(newDelay);
 
                 generatePastelPalette();
@@ -320,7 +348,6 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
 
-        // ⭐ WHITE BORDER
         g.setColor(Color.white);
         g.drawRect(0, 0, COLS * BLOCK, ROWS * BLOCK);
 
@@ -330,7 +357,6 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
             g.drawString("PAUSED", 40, getHeight() / 2);
         }
 
-        // Ghost piece
         if (!paused) {
             Point ghost = getGhostPosition();
             g.setColor(new Color(255, 255, 255, 60));
@@ -344,7 +370,6 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
             }
         }
 
-        // Board
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
                 if (board[r][c] != null) {
@@ -354,7 +379,6 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
             }
         }
 
-        // Current piece
         if (!paused) {
             g.setColor(palette[currentPiece.ordinal()]);
             int[][] shape = getShape();
@@ -367,7 +391,6 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
             }
         }
 
-        // UI
         g.setColor(Color.white);
         g.setFont(new Font("Arial", Font.BOLD, 20));
         g.drawString("Score: " + score, COLS * BLOCK + 20, 40);
@@ -399,10 +422,8 @@ public class Tetris extends JPanel implements ActionListener, KeyListener {
 
     @Override
     public void keyPressed(KeyEvent e) {
-
         int code = e.getKeyCode();
 
-        // ⭐ ESC toggles pause
         if (code == KeyEvent.VK_ESCAPE) {
             paused = !paused;
             repaint();
